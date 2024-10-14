@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, Text } from 'react-native';
 import { Svg, Path } from 'react-native-svg';
+import { svgPathProperties } from 'svg-path-properties';
 
 const { height, width } = Dimensions.get('window');
+const LENGTH_MIN_MATCH = 15.00;
+const TOTAL_MIN_MATCH = 4.00;
+
 
 function catmullRom2bezier(points) {
   if (points.length < 2) return '';
@@ -25,10 +29,84 @@ function catmullRom2bezier(points) {
   }
   return result.join(' ');
 }
+    
 
-export default ChooseScreen = () => {
+function approximateEvenly(pathData, numPoints = 100) {
+    const properties = new svgPathProperties(pathData);
+    const totalLength = properties.getTotalLength();
+    const points = [];
+
+    for (let i = 0; i <= numPoints; i++) {
+        const point = properties.getPointAtLength((i / numPoints) * totalLength);
+        points.push(point);
+    }
+
+    return points;
+}
+
+function calculateLengthDifference(pathData1, pathData2) {
+    const properties1 = new svgPathProperties(pathData1);
+    const properties2 = new svgPathProperties(pathData2);
+
+    const length1 = properties1.getTotalLength();
+    const length2 = properties2.getTotalLength();
+
+    return Math.abs(length1 - length2);
+}
+
+function centerAndScale(points) {
+    const minX = Math.min(...points.map(p => p.x));
+    const maxX = Math.max(...points.map(p => p.x));
+    const minY = Math.min(...points.map(p => p.y));
+    const maxY = Math.max(...points.map(p => p.y));
+
+    const width = maxX - minX;
+    const height = maxY - minY;
+    const scale = Math.max(width, height);
+
+    return points.map(p => ({
+        x: (p.x - minX) / scale,
+        y: (p.y - minY) / scale
+    }));
+}
+
+function calculateTotalError(points1, points2) {
+    if (points1.length !== points2.length) {
+        throw new Error("Point arrays must have the same length.");
+    }
+
+    let totalError = 0;
+    for (let i = 0; i < points1.length; i++) {
+        const dx = points1[i].x - points2[i].x;
+        const dy = points1[i].y - points2[i].y;
+        totalError += Math.sqrt(dx * dx + dy * dy);
+    }
+
+    return totalError;
+}
+
+function comparePaths(pathData1, pathData2, numPoints = 100) {
+  /* return: [length difference, total score] */
+
+  const points1 = approximateEvenly(pathData1, numPoints);
+  const points2 = approximateEvenly(pathData2, numPoints);
+
+  const lengthDifference = calculateLengthDifference(pathData1, pathData2);
+
+  const centeredPoints1 = centerAndScale(points1);
+  const centeredPoints2 = centerAndScale(points2);
+
+  const totalError = calculateTotalError(centeredPoints1, centeredPoints2);
+
+  return [lengthDifference, totalError];
+}
+
+
+export default Canvas = () => {
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
+  const [prevPath, setPrevPath] = useState([]);
+  const [prev2Path, setPrev2Path] = useState([]);
   const [allPoints, setAllPoints] = useState([]);
   const [isClearButtonClicked, setClearButtonClicked] = useState(false);
 
@@ -50,6 +128,8 @@ export default ChooseScreen = () => {
 
   const onTouchEnd = () => {
     if (currentPath.length > 0) {
+      setPrevPath(currentPath);
+      setPrev2Path(prevPath)
       setPaths([...paths, currentPath.join('')]);
       setCurrentPath([]);
       setAllPoints([]);
@@ -61,6 +141,15 @@ export default ChooseScreen = () => {
     setCurrentPath([]); 
     setAllPoints([]);
     setClearButtonClicked(false); 
+  };
+
+  const testing = () => {
+    res = comparePaths(prevPath[0], prev2Path[0]);
+    if (res[0] <= LENGTH_MIN_MATCH && res[1] <= TOTAL_MIN_MATCH) {
+      console.log("PASS!", res);
+    } else {
+      console.log("FAIL!", res);
+    }
   };
 
   return (
@@ -87,6 +176,9 @@ export default ChooseScreen = () => {
           )}
         </Svg>
       </View>
+      <TouchableOpacity style={styles.clearButton} onPress={testing}>
+        <Text style={styles.clearButtonText}>test</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.clearButton} onPress={handleClearButtonClick}>
         <Text style={styles.clearButtonText}>Clear</Text>
       </TouchableOpacity>
