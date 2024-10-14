@@ -3,6 +3,8 @@ import { View, StyleSheet, Dimensions, TouchableOpacity, Text } from 'react-nati
 import { Svg, Path } from 'react-native-svg';
 import { svgPathProperties } from 'svg-path-properties';
 
+
+const STROKE_INFO = require('../../assets/strokes.json');
 const { height, width } = Dimensions.get('window');
 const LENGTH_MIN_MATCH = 15.00;
 const TOTAL_MIN_MATCH = 4.00;
@@ -105,8 +107,14 @@ function comparePaths(pathData1, pathData2, numPoints = 100) {
 export default Canvas = () => {
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
-  const [prevPath, setPrevPath] = useState([]);
-  const [prev2Path, setPrev2Path] = useState([]);
+
+  const [letter, setLetter] = useState("A");
+  const [strokeCount, setStrokeCount] = useState(0);
+  const [checkPaths, setCheckPaths] = useState(STROKE_INFO[letter]["strokes"]);
+
+  const [prevRes, setPrevRes] = useState([]);
+  const [curRes, setCurRes] = useState([]);
+
   const [allPoints, setAllPoints] = useState([]);
   const [isClearButtonClicked, setClearButtonClicked] = useState(false);
 
@@ -127,29 +135,37 @@ export default Canvas = () => {
   };
 
   const onTouchEnd = () => {
-    if (currentPath.length > 0) {
-      setPrevPath(currentPath);
-      setPrev2Path(prevPath)
+    if (currentPath.length > 0 && strokeCount < STROKE_INFO[letter]["n"]) {
       setPaths([...paths, currentPath.join('')]);
       setCurrentPath([]);
       setAllPoints([]);
+
+      res = comparePaths(checkPaths[strokeCount], currentPath[0]);
+
+      if (res[0] <= LENGTH_MIN_MATCH && res[1] <= TOTAL_MIN_MATCH) {
+        console.log(strokeCount, "PASSED WITH: ", res, "| continuing");
+        setStrokeCount(strokeCount + 1);
+        setPrevRes(res);
+      } else {
+        console.log(strokeCount, "FAILED WITH: ", res, "| resetting");
+        setStrokeCount(0);
+        setPaths([]); 
+        setCurrentPath([]); 
+        setAllPoints([]);
+        setPrevRes(res);
+      }
+    } if (strokeCount == STROKE_INFO[letter]["n"]) {
+      console.log("GOOD JOB!");
     }
   };
 
   const handleClearButtonClick = () => {
+    setStrokeCount(0);
     setPaths([]); 
     setCurrentPath([]); 
     setAllPoints([]);
     setClearButtonClicked(false); 
-  };
-
-  const testing = () => {
-    res = comparePaths(prevPath[0], prev2Path[0]);
-    if (res[0] <= LENGTH_MIN_MATCH && res[1] <= TOTAL_MIN_MATCH) {
-      console.log("PASS!", res);
-    } else {
-      console.log("FAIL!", res);
-    }
+    console.log("'", letter, "'", "set up: ", checkPaths);
   };
 
   return (
@@ -176,12 +192,19 @@ export default Canvas = () => {
           )}
         </Svg>
       </View>
-      <TouchableOpacity style={styles.clearButton} onPress={testing}>
-        <Text style={styles.clearButtonText}>test</Text>
-      </TouchableOpacity>
+      <View style={{display: 'flex', flexDirection: 'row', width: '100%', justifyContent: 'space-evenly', alignItems: 'center'}}>
       <TouchableOpacity style={styles.clearButton} onPress={handleClearButtonClick}>
         <Text style={styles.clearButtonText}>Clear</Text>
       </TouchableOpacity>
+      <TouchableOpacity style={styles.clearButton} onPress={handleClearButtonClick}>
+        <Text style={styles.clearButtonText}>Tutorial</Text>
+      </TouchableOpacity>
+      <View style={{ flexDirection: 'column', width: "40%"}}>
+        <Text style={{color: '#000'}}>Current Letter: {letter}</Text>
+        <Text style={{color: '#000'}}>Stroke: {strokeCount}, Accuracy: {100-(Math.max(0, 100 * (1 - prevRes[0] / LENGTH_MIN_MATCH) * (1 - prevRes[1] / TOTAL_MIN_MATCH)))}</Text>
+      </View>
+      </View>
+  
     </View>
   );
 };
