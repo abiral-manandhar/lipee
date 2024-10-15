@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Image, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Image } from 'react-native';
 import { Svg, Path } from 'react-native-svg';
 import { svgPathProperties } from 'svg-path-properties';
 import { useFonts } from 'expo-font';
-
 
 const STROKE_INFO = require('../../assets/strokes.json');
 const { height, width } = Dimensions.get('window');
@@ -43,58 +42,21 @@ function approximateEvenly(pathData, numPoints = 100) {
   return points;
 }
 
-function calculateLengthDifference(pathData1, pathData2) {
-  const properties1 = new svgPathProperties(pathData1);
-  const properties2 = new svgPathProperties(pathData2);
+function checkPathIntersection(svgPath, drawnPath) {
+  const svgProps = new svgPathProperties(svgPath);
+  const drawnProps = new svgPathProperties(drawnPath);
+  const svgLength = svgProps.getTotalLength();
+  const drawnLength = drawnProps.getTotalLength();
 
-  const length1 = properties1.getTotalLength();
-  const length2 = properties2.getTotalLength();
+  // Check if any point in the drawn path intersects with the SVG path
+  for (let i = 0; i <= drawnLength; i++) {
+    const point = drawnProps.getPointAtLength(i);
+    const isInside = svgProps.getPointAtLength(0).x <= point.x && point.x <= svgProps.getPointAtLength(svgLength).x &&
+                     svgProps.getPointAtLength(0).y <= point.y && point.y <= svgProps.getPointAtLength(svgLength).y;
 
-  return Math.abs(length1 - length2);
-}
-
-function centerAndScale(points) {
-  const minX = Math.min(...points.map(p => p.x));
-  const maxX = Math.max(...points.map(p => p.x));
-  const minY = Math.min(...points.map(p => p.y));
-  const maxY = Math.max(...points.map(p => p.y));
-
-  const width = maxX - minX;
-  const height = maxY - minY;
-  const scale = Math.max(width, height);
-
-  return points.map(p => ({
-    x: (p.x - minX) / scale,
-    y: (p.y - minY) / scale
-  }));
-}
-
-function calculateTotalError(points1, points2) {
-  if (points1.length !== points2.length) {
-    throw new Error("Point arrays must have the same length.");
+    if (isInside) return true;
   }
-
-  let totalError = 0;
-  for (let i = 0; i < points1.length; i++) {
-    const dx = points1[i].x - points2[i].x;
-    const dy = points1[i].y - points2[i].y;
-    totalError += Math.sqrt(dx * dx + dy * dy);
-  }
-
-  return totalError;
-}
-
-function comparePaths(pathData1, pathData2, numPoints = 100) {
-  const points1 = approximateEvenly(pathData1, numPoints);
-  const points2 = approximateEvenly(pathData2, numPoints);
-
-  const lengthDifference = calculateLengthDifference(pathData1, pathData2);
-  const centeredPoints1 = centerAndScale(points1);
-  const centeredPoints2 = centerAndScale(points2);
-
-  const totalError = calculateTotalError(centeredPoints1, centeredPoints2);
-
-  return [lengthDifference, totalError];
+  return false;
 }
 
 export default Canvas = () => {
@@ -103,16 +65,11 @@ export default Canvas = () => {
   const [letter, setLetter] = useState("A");
   const [strokeCount, setStrokeCount] = useState(0);
   const [checkPaths, setCheckPaths] = useState(STROKE_INFO[letter]["strokes"]);
-  const [prevRes, setPrevRes] = useState([]);
-  const [curRes, setCurRes] = useState([]);
   const [allPoints, setAllPoints] = useState([]);
-  const [isClearButtonClicked, setClearButtonClicked] = useState(false);
-
 
   const [loaded, error] = useFonts({
     'poppins': require('../../assets/fonts/Poppins-Black.ttf'),
   });
-
 
   const onTouchMove = (event) => {
     const locationX = event.nativeEvent.locationX;
@@ -131,20 +88,18 @@ export default Canvas = () => {
 
   const onTouchEnd = () => {
     if (currentPath.length > 0 && strokeCount < STROKE_INFO[letter]["n"]) {
-      setPaths([...paths, currentPath.join('')]);
+      const drawnPath = currentPath.join('');
+      const inside = checkPaths.some(svgPath => checkPathIntersection(svgPath, drawnPath));
+
+      if (inside) {
+        console.log("Drawn path is inside the SVG paths");
+      } else {
+        console.log("Drawn path is outside the SVG paths");
+      }
+
+      setPaths([...paths, drawnPath]);
       setCurrentPath([]);
       setAllPoints([]);
-      const res = comparePaths(checkPaths[strokeCount], currentPath[0]);
-      if (res[0] <= LENGTH_MIN_MATCH && res[1] <= TOTAL_MIN_MATCH) {
-        setStrokeCount(strokeCount + 1);
-        setPrevRes(res);
-      } else {
-        setStrokeCount(0);
-        setPaths([]);
-        setCurrentPath([]);
-        setAllPoints([]);
-        setPrevRes(res);
-      }
     }
   };
 
@@ -153,7 +108,6 @@ export default Canvas = () => {
     setPaths([]);
     setCurrentPath([]);
     setAllPoints([]);
-    setClearButtonClicked(false);
   };
 
   return (
@@ -162,7 +116,7 @@ export default Canvas = () => {
         <Svg height={height * 0.7} width={width}>
           <Path
             d={paths.join(' ')}
-            stroke={isClearButtonClicked ? 'transparent' : '#f49209'}
+            stroke="#f49209"
             fill={'transparent'}
             strokeWidth={7}
             strokeLinejoin={'round'}
@@ -171,13 +125,17 @@ export default Canvas = () => {
           {currentPath.length > 0 && (
             <Path
               d={currentPath.join(' ')}
-              stroke={isClearButtonClicked ? 'transparent' : '#f49209'}
+              stroke="#f49209"
               fill={'transparent'}
               strokeWidth={7}
               strokeLinejoin={'round'}
               strokeLinecap={'round'}
             />
           )}
+          {/* Overlay SVG Paths */}
+          <Path d="M10,100 L50,10" stroke="blue" fill="none" strokeWidth="2" />
+          <Path d="M50,10 L90,100" stroke="red" fill="none" strokeWidth="2" />
+          <Path d="M30,70 L70,70" stroke="green" fill="none" strokeWidth="2" />
         </Svg>
         <View style={styles.iconContainer}>
           <TouchableOpacity onPress={handleClearButtonClick}>
@@ -189,28 +147,24 @@ export default Canvas = () => {
         </View>
       </View>
 
-
-
       <View style={styles.info}>
         <View style={styles.infoSection}>
-      <Text style={styles.unicodeText}>
-    Character: 𑐮
-  </Text>
-  <Text style={styles.infoText}>
-    Lipi: Ranjana  
-  </Text>
-  
-</View>
-<View style={styles.animateSVG}>
-<Text style={styles.unicodeText}>
-    Animate guidance 
-  </Text>
-  <Text style={styles.infoText}>
-    here 
-  </Text>
-</View>
-
-</View>
+          <Text style={styles.unicodeText}>
+            Character: 𑐮
+          </Text>
+          <Text style={styles.infoText}>
+            Lipi: Ranjana  
+          </Text>
+        </View>
+        <View style={styles.animateSVG}>
+          <Text style={styles.unicodeText}>
+            Animate guidance 
+          </Text>
+          <Text style={styles.infoText}>
+            here 
+          </Text>
+        </View>
+      </View>
     </View>
   );
 };
@@ -220,13 +174,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#eadbc9',
     flexDirection: 'column',
-    
   },
   svgContainer: {
     flex: 0.9,
-   
     width,
-    
     position: 'relative',
   },
   iconContainer: {
@@ -249,14 +200,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start', 
   },
   infoSection: {
-      flex: .2,
-      width: '100%'
-
+    flex: .2,
+    width: '100%'
   },
   infoText: {
     fontSize: 16, 
     color: '#f49209', 
-     
     marginBottom: 0,
     textAlign: 'left',
     fontFamily: "poppins"
@@ -269,10 +218,9 @@ const styles = StyleSheet.create({
     fontFamily: "poppins"
   },
   animateSVG: {
-flex: .8,
-width: '100%',
-justifyContent: 'center',
-alignItems: 'center'
+    flex: .8,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center'
   }
-  
 });
