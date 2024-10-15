@@ -16,7 +16,7 @@ export default function ScreenStack(){
     return(
         <Screen.Navigator>
 
-            <Screen.Screen name="Choose" component={Canvas}/>
+            <Screen.Screen name="Canvas" component={Canvas} options={{ headerShown: false }}/>
             <Screen.Screen name="Greet" component={GreetScreen}/>
             <Screen.Screen name="Practise" component={PractiseScreen}/>
             <Screen.Screen name="Result" component={ResultScreen}/>
