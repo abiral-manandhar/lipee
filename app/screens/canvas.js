@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Image } from 'react-native';
 import { useSpring, animated } from 'react-spring';
 import { Svg, Path } from 'react-native-svg';
@@ -135,8 +135,6 @@ function comparePaths(pathData1, pathData2, numPoints = 100) {
 
 const AnimatedPath = animated(Path);
 
-
-
 export default Canvas = () => {
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
@@ -149,7 +147,7 @@ export default Canvas = () => {
     'poppins': require('../../assets/fonts/Poppins-Black.ttf'),
   });
 
-  const overlayPaths = ["M50,10 L10,100", "M50,10 L90,100", "M30,70 L70,70"]; // example overlay paths
+  const overlayPaths = checkPaths; 
 
   const onTouchMove = (event) => {
     const locationX = event.nativeEvent.locationX;
@@ -172,7 +170,6 @@ export default Canvas = () => {
       setCurrentPath([]);
       setAllPoints([]);
 
-      // Check if the user's path intersects with the overlay paths
       const intersected = checkForIntersection(allPoints, overlayPaths);
 
       if (intersected) {
@@ -205,16 +202,23 @@ export default Canvas = () => {
     setAllPoints([]);
   };
 
-  const asnimateStrokes = () => {
+  const animateStrokes = () => {
 
   }
+
+  useEffect(() => {
+    if (isAnimating) {
+      console.log("YAY");
+    }
+  });
 
   const [isAnimating, setAnimating] = useState(false);
 
   const spring = useSpring({
     strokeDasharray: 1000,
-    strokeDashoffset: isAnimating ? 0 : 1000, // Changes based on isAnimating state
+    strokeDashoffset: isAnimating ? 0 : 1000, 
     config: { duration: 3000 },
+    color: "#fff"
   });
 
 
@@ -275,19 +279,23 @@ export default Canvas = () => {
           </Text>
         </View>
         <View style={styles.animateSVG}> 
-          <Svg height="200" width="200" viewBox="0 0 200 200">
-            <AnimatedPath
-              d="M10 150 Q 100 10, 190 150" // Quadratic Bezier curve
-              stroke="black"
-              strokeWidth="2"
-              fill="none"
-              style={spring}
-            />
+          <Svg height={(height / 100) * 30} width={width} viewBox="0 0 200 200">
+          {isAnimating && (
+            checkPaths.map((path, index) => (
+              <AnimatedPath
+                key={index}
+                d={path}
+                stroke="white"
+                strokeWidth="4"
+                fill="none"
+                style={spring}
+              />
+            ))
+          )}
           </Svg>
-          <Button
-            title={isAnimating ? "Stop" : "Start"} 
-            onPress={() => setAnimating(!isAnimating)} // Toggle animation
-          />
+          <TouchableOpacity onPress={() => setAnimating(!isAnimating)}>
+            <Text>{isAnimating ? "Stop" : "Start"}</Text>
+          </TouchableOpacity>
         </View>
         </View>
     </View>
@@ -372,5 +380,6 @@ const styles = StyleSheet.create({
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    display: 'flex'
   },
 });
