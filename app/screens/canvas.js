@@ -75,25 +75,7 @@ function calculateTotalError(points1, points2) {
   return totalError;
 }
 
-function comparePaths(pathData1, pathData2, numPoints = 100) {
-  const points1 = approximateEvenly(pathData1, numPoints);
-  const points2 = approximateEvenly(pathData2, numPoints);
-
-  const lengthDifference = calculateLengthDifference(pathData1, pathData2);
-
-  const centeredPoints1 = centerAndScale(points1);
-  const centeredPoints2 = centerAndScale(points2);
-
-  const totalError = calculateTotalError(centeredPoints1, centeredPoints2);
-
-  return [lengthDifference, totalError];
-}
-
-
-const AnimatedPath = animated(Path);
-
-
-const INTERSECTION_THRESHOLD = 10; // Set a threshold for intersection detection
+const INTERSECTION_THRESHOLD = 10;
 
 function approximateEvenly(pathData, numPoints = 100) {
   const properties = new svgPathProperties(pathData);
@@ -120,7 +102,6 @@ function normalizeUserPoints(userPoints, svgBounds) {
 function checkForIntersection(userPoints, overlayPaths) {
   const overlayPoints = overlayPaths.map(pathData => approximateEvenly(pathData, 100)).flat();
   
-  // Normalize overlay points if necessary
   const normalizedOverlayPoints = overlayPoints.map(point => [point.x, point.y]);
 
   for (let i = 0; i < userPoints.length; i++) {
@@ -130,12 +111,32 @@ function checkForIntersection(userPoints, overlayPaths) {
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       if (distance <= INTERSECTION_THRESHOLD) {
-        return true; // Intersection detected
+        return true; 
       }
     }
   }
-  return false; // No intersection found
+  return false; 
 }
+
+function comparePaths(pathData1, pathData2, numPoints = 100) {
+  const points1 = approximateEvenly(pathData1, numPoints);
+  const points2 = approximateEvenly(pathData2, numPoints);
+
+  const lengthDifference = calculateLengthDifference(pathData1, pathData2);
+
+  const centeredPoints1 = centerAndScale(points1);
+  const centeredPoints2 = centerAndScale(points2);
+
+  const totalError = calculateTotalError(centeredPoints1, centeredPoints2);
+
+  return [lengthDifference, totalError];
+}
+
+
+const AnimatedPath = animated(Path);
+
+
+
 export default Canvas = () => {
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
