@@ -9,17 +9,16 @@ const STROKE_INFO = require('../../assets/strokes.json');
 
 const LENGTH_MIN_MATCH = 20.00;
 const TOTAL_MIN_MATCH = 5.50;
-
-
+const result = [];
+let x = 0
 function catmullRom2bezier(points) {
   if (points.length < 2) return '';
 
-  const result = [];
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = points[i - 1] || points[i];
-    const p1 = points[i]; 
-    const p2 = points[i + 1]; 
-    const p3 = points[i + 2] || p2; 
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
 
     const cp1X = p1[0] + (p2[0] - p0[0]) / 6;
     const cp1Y = p1[1] + (p2[1] - p0[1]) / 6;
@@ -32,6 +31,46 @@ function catmullRom2bezier(points) {
   return result.join(' ');
 }
 
+function getBoundingBox(pathData) {
+  const properties = new svgPathProperties(pathData);
+  const length = properties.getTotalLength();
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  for (let i = 0; i <= length; i++) {
+    const point = properties.getPointAtLength(i);
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+
+  return { minX, minY, maxX, maxY };
+}
+
+function boxesIntersect(box1, box2) {
+  return !(box2.minX > box1.maxX ||
+           box2.maxX < box1.minX ||
+           box2.minY > box1.maxY ||
+           box2.maxY < box1.minY);
+}
+
+function checkForIntersection(userPathPoints, overlayPaths) {
+  console.log(result[x])
+  console.log(overlayPaths)
+  const userPathBoundingBox = getBoundingBox(result[x]);
+  const overlayBoundingBox = getBoundingBox(overlayPath[x]);
+
+x+=1;
+  
+    
+    if (boxesIntersect(userPathBoundingBox, overlayBoundingBox)) {
+      return true; // Intersection detected
+    }
+  
+  
+  return false; // No intersections
+}
 
 function calculateLengthDifference(pathData1, pathData2) {
   const properties1 = new svgPathProperties(pathData1);
@@ -44,19 +83,19 @@ function calculateLengthDifference(pathData1, pathData2) {
 }
 
 function centerAndScale(points) {
-  const minX = Math.min(...points.map(p => p.x));
-  const maxX = Math.max(...points.map(p => p.x));
-  const minY = Math.min(...points.map(p => p.y));
-  const maxY = Math.max(...points.map(p => p.y));
+  const minX = Math.min(...points.map(p => p[0]));
+  const maxX = Math.max(...points.map(p => p[0]));
+  const minY = Math.min(...points.map(p => p[1]));
+  const maxY = Math.max(...points.map(p => p[1]));
 
   const width = maxX - minX;
   const height = maxY - minY;
   const scale = Math.max(width, height);
 
-  return points.map(p => ({
-    x: (p.x - minX) / scale,
-    y: (p.y - minY) / scale
-  }));
+  return points.map(p => ([
+    (p[0] - minX) / scale,
+    (p[1] - minY) / scale
+  ]));
 }
 
 function calculateTotalError(points1, points2) {
@@ -66,12 +105,25 @@ function calculateTotalError(points1, points2) {
 
   let totalError = 0;
   for (let i = 0; i < points1.length; i++) {
-    const dx = points1[i].x - points2[i].x;
-    const dy = points1[i].y - points2[i].y;
+    const dx = points1[i][0] - points2[i][0];
+    const dy = points1[i][1] - points2[i][1];
     totalError += Math.sqrt(dx * dx + dy * dy);
   }
 
   return totalError;
+}
+
+function approximateEvenly(pathData, numPoints = 100) {
+  const properties = new svgPathProperties(pathData);
+  const totalLength = properties.getTotalLength();
+  const points = [];
+
+  for (let i = 0; i <= numPoints; i++) {
+    const point = properties.getPointAtLength((i / numPoints) * totalLength);
+    points.push([point.x, point.y]);
+  }
+
+  return points;
 }
 
 function comparePaths(pathData1, pathData2, numPoints = 100) {
@@ -88,49 +140,6 @@ function comparePaths(pathData1, pathData2, numPoints = 100) {
   return [lengthDifference, totalError];
 }
 
-const INTERSECTION_THRESHOLD = 10; // Set a threshold for intersection detection
-
-function approximateEvenly(pathData, numPoints = 100) {
-  const properties = new svgPathProperties(pathData);
-  const totalLength = properties.getTotalLength();
-  const points = [];
-
-  for (let i = 0; i <= numPoints; i++) {
-    const point = properties.getPointAtLength((i / numPoints) * totalLength);
-    points.push(point);
-  }
-
-  return points;
-}
-
-function normalizeUserPoints(userPoints, svgBounds) {
-  const { minX, minY, maxX, maxY, width, height } = svgBounds;
-  return userPoints.map(([x, y]) => {
-    const normalizedX = (x - minX) / width; // Scale to [0, 1]
-    const normalizedY = (y - minY) / height; // Scale to [0, 1]
-    return [normalizedX, normalizedY];
-  });
-}
-
-function checkForIntersection(userPoints, overlayPaths) {
-  const overlayPoints = overlayPaths.map(pathData => approximateEvenly(pathData, 100)).flat();
-  
-  // Normalize overlay points if necessary
-  const normalizedOverlayPoints = overlayPoints.map(point => [point.x, point.y]);
-
-  for (let i = 0; i < userPoints.length; i++) {
-    for (let j = 0; j < normalizedOverlayPoints.length; j++) {
-      const dx = userPoints[i][0] - normalizedOverlayPoints[j][0];
-      const dy = userPoints[i][1] - normalizedOverlayPoints[j][1];
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance <= INTERSECTION_THRESHOLD) {
-        return true; // Intersection detected
-      }
-    }
-  }
-  return false; // No intersection found
-}
 export default Canvas = () => {
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
@@ -143,7 +152,11 @@ export default Canvas = () => {
     'poppins': require('../../assets/fonts/Poppins-Black.ttf'),
   });
 
-  const overlayPaths = ["M50,10 L10,100", "M50,10 L90,100", "M30,70 L70,70"]; // example overlay paths
+  const overlayPaths = [
+    "M 20 70 L 40 10 L 60 70", // Outer lines of A
+    "M 30 50 L 50 50",         // Horizontal bar
+    "M 40 10 L 20 70"          // Right side of A
+  ];
 
   const onTouchMove = (event) => {
     const locationX = event.nativeEvent.locationX;
@@ -168,11 +181,8 @@ export default Canvas = () => {
 
       // Check if the user's path intersects with the overlay paths
       const intersected = checkForIntersection(allPoints, overlayPaths);
-
       if (intersected) {
-        console.log("Path intersected with overlay paths!");
-      } else {
-        console.log("No intersection with overlay paths.");
+        console.log("Paths intersect with overlay paths");
       }
 
       const res = comparePaths(checkPaths[strokeCount], currentPath[0]);
@@ -183,13 +193,13 @@ export default Canvas = () => {
       } else {
         console.log(strokeCount, "FAILED WITH: ", res, "| resetting");
         setStrokeCount(0);
-        setPaths([]); 
-        setCurrentPath([]); 
+        setPaths([]);
+        setCurrentPath([]);
         setAllPoints([]);
       }
     }
 
-    if (strokeCount == STROKE_INFO[letter]["n"]) {
+    if (strokeCount === STROKE_INFO[letter]["n"]) {
       console.log("GOOD JOB!");
     }
   };
@@ -204,9 +214,7 @@ export default Canvas = () => {
   return (
     <View style={styles.container}>
       <View style={styles.svgWrapper}>
-        
         <View style={styles.svgContainer} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-
           <Svg>
             <Path
               d={paths.join(' ')}
@@ -227,28 +235,25 @@ export default Canvas = () => {
               />
             )}
           </Svg>
-     
         </View>
         <View style={styles.overlayContainer}>
-          <Svg style={styles.overlay}>
-            <Path d="M50,10 L10,100" stroke="blue" fill="none" strokeWidth="7" />
-            <Path d="M50,10 L90,100" stroke="red" fill="none" strokeWidth="7" />
-            <Path d="M30,70 L70,70" stroke="green" fill="none" strokeWidth="7" />
+          <Svg style={styles.overlay} width="80" height="80" viewBox="0 0 80 80">
+            {overlayPaths.map((path, index) => (
+              <Path key={index} d={path} stroke="blue" fill="none" strokeWidth="7" />
+            ))}
           </Svg>
         </View>
       </View>
 
-   
-
       <View style={styles.info}>
-      <View style={styles.iconContainer}>
-        <TouchableOpacity onPress={handleClearButtonClick}>
-          <Image source={require('../../assets/icons/recycle-bin.png')} style={styles.icon} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => console.log("Tutorial Clicked")}>
-          <Image source={require('../../assets/icons/refresh.png')} style={styles.icon} />
-        </TouchableOpacity>
-      </View>
+        <View style={styles.iconContainer}>
+          <TouchableOpacity onPress={handleClearButtonClick}>
+            <Image source={require('../../assets/icons/recycle-bin.png')} style={styles.icon} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => console.log("Tutorial Clicked")}>
+            <Image source={require('../../assets/icons/refresh.png')} style={styles.icon} />
+          </TouchableOpacity>
+        </View>
         <View style={styles.infoSection}>
           <Text style={styles.unicodeText}>
             Character: 𑐮
@@ -269,6 +274,12 @@ export default Canvas = () => {
     </View>
   );
 };
+
+
+
+
+
+
 
 const styles = StyleSheet.create({
   container: {
