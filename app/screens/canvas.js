@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Image } from 'react-native';
+import { useSpring, animated } from 'react-spring';
 import { Svg, Path } from 'react-native-svg';
 import { svgPathProperties } from 'svg-path-properties';
 import { useFonts } from 'expo-font';
@@ -8,7 +9,7 @@ const { height, width } = Dimensions.get('window');
 const STROKE_INFO = require('../../assets/strokes.json');
 
 const LENGTH_MIN_MATCH = 20.00;
-const TOTAL_MIN_MATCH = 5.50;
+const TOTAL_MIN_MATCH = 5.00;
 
 function catmullRom2bezier(points) {
   if (points.length < 2) return '';
@@ -103,6 +104,10 @@ function comparePaths(pathData1, pathData2, numPoints = 100) {
   return [lengthDifference, totalError];
 }
 
+const AnimatedPath = animated(Path);
+
+
+
 export default Canvas = () => {
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
@@ -149,7 +154,7 @@ export default Canvas = () => {
         setCurrentPath([]); 
         setAllPoints([]);
       }
-    } if (strokeCount == STROKE_INFO[letter]["n"]) {
+    } if ((strokeCount + 1) == STROKE_INFO[letter]["n"]) {
       console.log("GOOD JOB!");
     }
   };
@@ -160,6 +165,19 @@ export default Canvas = () => {
     setCurrentPath([]);
     setAllPoints([]);
   };
+
+  const asnimateStrokes = () => {
+
+  }
+
+  const [isAnimating, setAnimating] = useState(false);
+
+  const spring = useSpring({
+    strokeDasharray: 1000,
+    strokeDashoffset: isAnimating ? 0 : 1000, // Changes based on isAnimating state
+    config: { duration: 3000 },
+  });
+
 
   return (
     <View style={styles.container}>
@@ -199,22 +217,29 @@ export default Canvas = () => {
 
       <View style={styles.info}>
         <View style={styles.infoSection}>
-          <Text style={styles.unicodeText}>
-            Character: 𑐮
+          <Text style={styles.infoText}>
+            Character:  <Text style={styles.unicodeText}>𑐮</Text>
           </Text>
           <Text style={styles.infoText}>
             Lipi: Ranjana  
           </Text>
         </View>
-        <View style={styles.animateSVG}>
-          <Text style={styles.unicodeText}>
-            Animate guidance 
-          </Text>
-          <Text style={styles.infoText}>
-            here 
-          </Text>
+        <View style={styles.animateSVG}> 
+          <Svg height="200" width="200" viewBox="0 0 200 200">
+            <AnimatedPath
+              d="M10 150 Q 100 10, 190 150" // Quadratic Bezier curve
+              stroke="black"
+              strokeWidth="2"
+              fill="none"
+              style={spring}
+            />
+          </Svg>
+          <Button
+            title={isAnimating ? "Stop" : "Start"} 
+            onPress={() => setAnimating(!isAnimating)} // Toggle animation
+          />
         </View>
-      </View>
+        </View>
     </View>
   );
 };
@@ -254,6 +279,8 @@ const styles = StyleSheet.create({
     width: '100%'
   },
   infoText: {
+    padding: 0,
+    margin: 0,
     fontSize: 16, 
     color: '#f49209', 
     marginBottom: 0,
