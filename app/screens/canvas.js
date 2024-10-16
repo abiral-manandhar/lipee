@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Image } from 'react-native';
-import { useSpring, animated } from 'react-spring';
+import { useSprings, animated } from 'react-spring';
 import { Svg, Path } from 'react-native-svg';
 import { svgPathProperties } from 'svg-path-properties';
 import { useFonts } from 'expo-font';
@@ -118,6 +118,49 @@ function checkForIntersection(userPoints, overlayPaths) {
   return false; 
 }
 
+function calculateMaxBoundaries (paths) {
+  let maxX = 0;
+  let maxY = 0;
+
+  max = []
+
+  const regex = /[MLHVCSQTAZ]([-+]?\d*\.?\d+),([-+]?\d*\.?\d+)/g;
+
+  paths.forEach(path => {
+      let match;
+      while ((match = regex.exec(path)) !== null) {
+          const x = parseFloat(match[1]); 
+          const y = parseFloat(match[2]); 
+          if (x > maxX) maxX = x; 
+          if (y > maxY) maxY = y; 
+      }
+  });
+
+  return { width: maxX, height: maxY };
+};
+
+
+function scalePath(path, widthFactor, heightFactor) {
+  widthFactor /= 100;
+  heightFactor /= 100;
+
+  console.log(path);
+
+  return path.replace(/([MLZHVCSQTA])([^MLZHVCSQTA]*)/g, (match, command, coords) => {
+    const coordsArray = coords.trim().split(/[\s,]+/);
+
+    const scaledCoords = coordsArray.map((num, index) => {
+      const number = parseFloat(num);
+      if (command === 'M' || command === 'L' || command === 'C' || command === 'Q' || command === 'T') {
+        return index % 2 === 0 ? (number * widthFactor).toFixed(2) : (number * heightFactor).toFixed(2);
+      }
+      return number;
+    });
+
+    return `${command} ${scaledCoords.join(' ')}`;
+  });
+}
+
 function comparePaths(pathData1, pathData2, numPoints = 100) {
   const points1 = approximateEvenly(pathData1, numPoints);
   const points2 = approximateEvenly(pathData2, numPoints);
@@ -132,7 +175,6 @@ function comparePaths(pathData1, pathData2, numPoints = 100) {
   return [lengthDifference, totalError];
 }
 
-
 const AnimatedPath = animated(Path);
 
 export default Canvas = () => {
@@ -142,6 +184,7 @@ export default Canvas = () => {
   const [strokeCount, setStrokeCount] = useState(0);
   const [checkPaths, setCheckPaths] = useState(STROKE_INFO[letter]["strokes"]);
   const [allPoints, setAllPoints] = useState([]);
+  const [factors, setFactors] = useState([]);
 
   const [loaded, error] = useFonts({
     'poppins': require('../../assets/fonts/Poppins-Black.ttf'),
@@ -203,10 +246,16 @@ export default Canvas = () => {
   };
 
   const animateStrokes = () => {
+    let m = calculateMaxBoundaries(checkPaths);
 
+    console.log(m)
+    setFactors([m["height"] / (height / 100) * 35 , m["width"] /(width / 100) * 70]);
+
+    setAnimating(!isAnimating);
   }
 
   useEffect(() => {
+    
     if (isAnimating) {
       console.log("YAY");
     }
@@ -214,13 +263,15 @@ export default Canvas = () => {
 
   const [isAnimating, setAnimating] = useState(false);
 
-  const spring = useSpring({
-    strokeDasharray: 1000,
-    strokeDashoffset: isAnimating ? 0 : 1000, 
-    config: { duration: 3000 },
-    color: "#fff"
-  });
-
+  const springs = useSprings(
+    checkPaths.length,
+    checkPaths.map((_, index) => ({
+      strokeDasharray: 1000,
+      strokeDashoffset: isAnimating ? 0 : 1000,
+      delay: index * 500,
+      config: { duration:  checkPaths.length * 550},
+    }))
+  );
 
   return (
     <View style={styles.container}>
@@ -259,8 +310,6 @@ export default Canvas = () => {
         </View>
       </View>
 
-   
-
       <View style={styles.info}>
       <View style={styles.iconContainer}>
         <TouchableOpacity onPress={handleClearButtonClick}>
@@ -272,28 +321,30 @@ export default Canvas = () => {
       </View>
         <View style={styles.infoSection}>
           <Text style={styles.infoText}>
-            Character:  <Text style={styles.unicodeText}>𑐮</Text>
-          </Text>
-          <Text style={styles.infoText}>
-            Lipi: Ranjana  
+            Character:  <Text style={styles.unicodeText}>𑐮</Text>            |            Lipi: Ranjana  
           </Text>
         </View>
         <View style={styles.animateSVG}> 
-          <Svg height={(height / 100) * 30} width={width} viewBox="0 0 200 200">
-          {isAnimating && (
-            checkPaths.map((path, index) => (
-              <AnimatedPath
-                key={index}
-                d={path}
-                stroke="white"
-                strokeWidth="4"
-                fill="none"
-                style={spring}
-              />
-            ))
-          )}
+        <Svg 
+          height={(height / 100) * 35} 
+          width={(width / 100) * 70} 
+          viewBox={`0 0 ${(width / 100) * 70} ${(height / 100) * 35}`} 
+          preserveAspectRatio="xMidYMid meet"
+        >
+          {isAnimating && (springs.map((spring, index) => (
+          <AnimatedPath
+            key={index}
+            d={scalePath(checkPaths[index], (width / 100) * 70, (height / 100) * 35)}
+            stroke="white"
+            strokeWidth="4"
+            fill="none"
+            style={spring}
+          />
+        )))
+      }
+
           </Svg>
-          <TouchableOpacity onPress={() => setAnimating(!isAnimating)}>
+          <TouchableOpacity onPress={() => animateStrokes()}>
             <Text>{isAnimating ? "Stop" : "Start"}</Text>
           </TouchableOpacity>
         </View>
@@ -355,9 +406,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   infoSection: {
-    padding: 10,
-    flex: 0.2,
+    padding: 0,
+    margin: 0,
     width: '100%',
+    alignItems: "center",
+    justifyContent: "center"
   },
   infoText: {
     padding: 0,
@@ -365,7 +418,7 @@ const styles = StyleSheet.create({
     fontSize: 16, 
     color: '#f49209', 
     marginBottom: 0,
-    textAlign: 'left',
+    textAlign: 'center',
     fontFamily: 'poppins',
   },
   unicodeText: {
@@ -376,7 +429,7 @@ const styles = StyleSheet.create({
     fontFamily: 'poppins',
   },
   animateSVG: {
-    flex: 0.8,
+    flex: 0.9,
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
