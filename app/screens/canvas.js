@@ -160,7 +160,14 @@ export default Canvas = () => {
   const [currentPath, setCurrentPath] = useState([]);
   const [letter, setLetter] = useState("A");
   const [strokeCount, setStrokeCount] = useState(0);
-  const [checkPaths, setCheckPaths] = useState(STROKE_INFO[letter]["strokes"]);
+
+  const scaleX = (width / 100) * 70;
+  const scaleY = (height / 100) * 35;
+
+  const [checkPaths, setCheckPaths] = useState(() => {
+    return STROKE_INFO[letter]["strokes"].map(path => scalePath(path, scaleX, scaleY));
+  });
+  
   const [allPoints, setAllPoints] = useState([]);
   const [hasAnimated, setHasAnimated] = useState(false);
   const [show, setShow] = useState(false);
@@ -279,13 +286,11 @@ export default Canvas = () => {
           </Svg>
      
         </View>
-        <View style={styles.overlayContainer}>
-          <Svg style={styles.overlay}>
-            <Path d="M50,10 L10,100" stroke="blue" fill="none" strokeWidth="7" />
-            <Path d="M50,10 L90,100" stroke="red" fill="none" strokeWidth="7" />
-            <Path d="M30,70 L70,70" stroke="green" fill="none" strokeWidth="7" />
-          </Svg>
-        </View>
+        <Svg style={styles.overlay}>
+        {checkPaths.map((d, index) => (
+          <Path key={index} d={d} stroke="black" strokeWidth="2" fill="none" />
+        ))}
+        </Svg>
       </View>
 
       <View style={styles.info}>
@@ -312,7 +317,7 @@ export default Canvas = () => {
           {(show) && (springs.map((spring, index) => (
             <AnimatedPath
               key={index}
-              d={scalePath(checkPaths[index], (width / 100) * 70, (height / 100) * 35)}
+              d={checkPaths[index]}
               stroke="white"
               strokeWidth="4"
               fill="none"
@@ -338,28 +343,20 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   svgWrapper: {
-    flex: 0.7,
+    justifyContent: 'center',
+    alignItems: 'center',
     position: 'relative',
   },
   svgContainer: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: (width / 100) * 70, 
+    height: (height / 100) * 35,
+
     zIndex: 1000,
   },
-  overlayContainer: {   
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   overlay: {
-    height: 110,
-    width: 100,
+    position: "absolute",
+    width: (width / 100) * 70, 
+    height: (height / 100) * 35,
     backgroundColor:'transparent',
   },
   iconContainer: {
