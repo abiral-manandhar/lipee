@@ -10,6 +10,9 @@ const STROKE_INFO = require('../../assets/strokes.json');
 
 const LENGTH_MIN_MATCH = 20.00;
 const TOTAL_MIN_MATCH = 5.50;
+const INTERSECTION_DISTANCE_THRESHOLD = 10;
+const INTERSECTION_POINTS_THRESHOLD = 0.015;
+
 
 
 function catmullRom2bezier(points) {
@@ -75,9 +78,8 @@ function calculateTotalError(points1, points2) {
   return totalError;
 }
 
-const INTERSECTION_THRESHOLD = 10;
 
-function approximateEvenly(pathData, numPoints = 100) {
+function approximateEvenly(pathData, numPoints) {
   const properties = new svgPathProperties(pathData);
   const totalLength = properties.getTotalLength();
   const points = [];
@@ -90,19 +92,17 @@ function approximateEvenly(pathData, numPoints = 100) {
   return points;
 }
 
-function normalizeUserPoints(userPoints, svgBounds) {
-  const { minX, minY, maxX, maxY, width, height } = svgBounds;
-  return userPoints.map(([x, y]) => {
-    const normalizedX = (x - minX) / width; // Scale to [0, 1]
-    const normalizedY = (y - minY) / height; // Scale to [0, 1]
-    return [normalizedX, normalizedY];
-  });
-}
+function checkForIntersection(userPoints, overlayPaths, width) {
+  const offset = (width / 100) * 15;
+  const overlayPoints = overlayPaths.map(pathData => approximateEvenly(pathData, userPoints.length)).flat();
 
-function checkForIntersection(userPoints, overlayPaths) {
-  const overlayPoints = overlayPaths.map(pathData => approximateEvenly(pathData, 100)).flat();
-  
-  const normalizedOverlayPoints = overlayPoints.map(point => [point.x, point.y]);
+  const normalizedOverlayPoints = overlayPoints.map(point => [
+    point.x + offset, 
+    point.y 
+  ]);
+
+  let count = 0;
+  let total = 0;
 
   for (let i = 0; i < userPoints.length; i++) {
     for (let j = 0; j < normalizedOverlayPoints.length; j++) {
@@ -110,13 +110,17 @@ function checkForIntersection(userPoints, overlayPaths) {
       const dy = userPoints[i][1] - normalizedOverlayPoints[j][1];
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      if (distance <= INTERSECTION_THRESHOLD) {
-        return true; 
+      if (distance <= INTERSECTION_DISTANCE_THRESHOLD) {
+        count += 1;
       }
+      total += 1;       
     }
   }
-  return false; 
+
+
+  return (count / total);
 }
+
 
 function scalePath(path, widthFactor, heightFactor) {
   widthFactor /= 100;
@@ -199,21 +203,14 @@ export default Canvas = () => {
       setCurrentPath([]);
       setAllPoints([]);
 
-      const intersected = checkForIntersection(allPoints, overlayPaths);
-
-      if (intersected) {
-        console.log("Path intersected with overlay paths!");
-      } else {
-        console.log("No intersection with overlay paths.");
-      }
-
+      const intersection_score = checkForIntersection(allPoints, overlayPaths, width);
       const res = comparePaths(checkPaths[strokeCount], currentPath[0]);
 
-      if (res[0] <= LENGTH_MIN_MATCH && res[1] <= TOTAL_MIN_MATCH) {
-        console.log(strokeCount, "PASSED WITH: ", res, "| continuing");
+      if (res[0] <= LENGTH_MIN_MATCH && res[1] <= TOTAL_MIN_MATCH && intersection_score >= INTERSECTION_POINTS_THRESHOLD) {
+        console.log(strokeCount, "PASSED WITH: ", res, intersection_score, "| continuing");
         setStrokeCount(strokeCount + 1);
       } else {
-        console.log(strokeCount, "FAILED WITH: ", res, "| resetting");
+        console.log(strokeCount, "FAILED WITH: ", res, intersection_score, "| resetting");
         setStrokeCount(0);
         setPaths([]); 
         setCurrentPath([]); 
@@ -260,8 +257,7 @@ export default Canvas = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.svgWrapper}>
-        
+      <View style={styles.svgWrapper} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
         <View style={styles.svgContainer} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
 
           <Svg>
@@ -346,11 +342,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+    zIndex: -1,
   },
   svgContainer: {
-    width: (width / 100) * 70, 
+    width: (width / 100) * 100, 
     height: (height / 100) * 35,
-
     zIndex: 1000,
   },
   overlay: {
