@@ -118,28 +118,6 @@ function checkForIntersection(userPoints, overlayPaths) {
   return false; 
 }
 
-function calculateMaxBoundaries (paths) {
-  let maxX = 0;
-  let maxY = 0;
-
-  max = []
-
-  const regex = /[MLHVCSQTAZ]([-+]?\d*\.?\d+),([-+]?\d*\.?\d+)/g;
-
-  paths.forEach(path => {
-      let match;
-      while ((match = regex.exec(path)) !== null) {
-          const x = parseFloat(match[1]); 
-          const y = parseFloat(match[2]); 
-          if (x > maxX) maxX = x; 
-          if (y > maxY) maxY = y; 
-      }
-  });
-
-  return { width: maxX, height: maxY };
-};
-
-
 function scalePath(path, widthFactor, heightFactor) {
   widthFactor /= 100;
   heightFactor /= 100;
@@ -184,7 +162,8 @@ export default Canvas = () => {
   const [strokeCount, setStrokeCount] = useState(0);
   const [checkPaths, setCheckPaths] = useState(STROKE_INFO[letter]["strokes"]);
   const [allPoints, setAllPoints] = useState([]);
-  const [factors, setFactors] = useState([]);
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const [show, setShow] = useState(false);
 
   const [loaded, error] = useFonts({
     'poppins': require('../../assets/fonts/Poppins-Black.ttf'),
@@ -246,20 +225,19 @@ export default Canvas = () => {
   };
 
   const animateStrokes = () => {
-    let m = calculateMaxBoundaries(checkPaths);
-
-    console.log(m)
-    setFactors([m["height"] / (height / 100) * 35 , m["width"] /(width / 100) * 70]);
+    if (!(hasAnimated && isAnimating)) {
+      setShow(true);
+    }
 
     setAnimating(!isAnimating);
-  }
+    setHasAnimated(true);
 
-  useEffect(() => {
+    setTimeout(() => { setAnimating(false); }, checkPaths.length * 800);
     
-    if (isAnimating) {
-      console.log("YAY");
+    if (hasAnimated) {
+      setShow(true);
     }
-  });
+  }
 
   const [isAnimating, setAnimating] = useState(false);
 
@@ -267,9 +245,9 @@ export default Canvas = () => {
     checkPaths.length,
     checkPaths.map((_, index) => ({
       strokeDasharray: 1000,
-      strokeDashoffset: isAnimating ? 0 : 1000,
-      delay: index * 500,
-      config: { duration:  checkPaths.length * 550},
+      strokeDashoffset:  show ? 0 : 1000, 
+      delay: index * 800,
+      config: { duration: 1200 }
     }))
   );
 
@@ -331,19 +309,19 @@ export default Canvas = () => {
           viewBox={`0 0 ${(width / 100) * 70} ${(height / 100) * 35}`} 
           preserveAspectRatio="xMidYMid meet"
         >
-          {isAnimating && (springs.map((spring, index) => (
-          <AnimatedPath
-            key={index}
-            d={scalePath(checkPaths[index], (width / 100) * 70, (height / 100) * 35)}
-            stroke="white"
-            strokeWidth="4"
-            fill="none"
-            style={spring}
-          />
-        )))
-      }
+          {(show) && (springs.map((spring, index) => (
+            <AnimatedPath
+              key={index}
+              d={scalePath(checkPaths[index], (width / 100) * 70, (height / 100) * 35)}
+              stroke="white"
+              strokeWidth="4"
+              fill="none"
+              style={spring}
+            />
+          )))
+          }
 
-          </Svg>
+        </Svg>
           <TouchableOpacity onPress={() => animateStrokes()}>
             <Text>{isAnimating ? "Stop" : "Start"}</Text>
           </TouchableOpacity>
