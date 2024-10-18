@@ -175,6 +175,8 @@ export default Canvas = () => {
   const [allPoints, setAllPoints] = useState([]);
   const [hasAnimated, setHasAnimated] = useState(false);
   const [show, setShow] = useState(false);
+  const [totalScore, setTotalScore] = useState(0);
+  const [isComplete, setComplete] = useState(false);
 
   const [loaded, error] = useFonts({
     'poppins': require('../../assets/fonts/Poppins-Black.ttf'),
@@ -205,19 +207,22 @@ export default Canvas = () => {
 
       const intersection_score = checkForIntersection(allPoints, overlayPaths, width);
       const res = comparePaths(checkPaths[strokeCount], currentPath[0]);
-
       if (res[0] <= LENGTH_MIN_MATCH && res[1] <= TOTAL_MIN_MATCH && intersection_score >= INTERSECTION_POINTS_THRESHOLD) {
-        console.log(strokeCount, "PASSED WITH: ", res, intersection_score, "| continuing");
+        setTotalScore(totalScore + ((100 - (LENGTH_MIN_MATCH - res[0])) +  (100 - Math.abs(TOTAL_MIN_MATCH - res[1])) +  ((intersection_score / INTERSECTION_POINTS_THRESHOLD) / 2) * 100) / 3);        
         setStrokeCount(strokeCount + 1);
       } else {
-        console.log(strokeCount, "FAILED WITH: ", res, intersection_score, "| resetting");
         setStrokeCount(0);
         setPaths([]); 
         setCurrentPath([]); 
+        setTotalScore(0);
         setAllPoints([]);
       }
     } if ((strokeCount + 1) == STROKE_INFO[letter]["n"]) {
-      console.log("GOOD JOB!");
+      let score = ((totalScore / 3) / 62) * 100; 
+      setTotalScore(score);
+      console.log("ACCURACY", score);
+      setComplete(true);
+      setTotalScore(0);
     }
   };
 
@@ -226,6 +231,7 @@ export default Canvas = () => {
     setPaths([]);
     setCurrentPath([]);
     setAllPoints([]);
+    setTotalScore(0);
   };
 
   const animateStrokes = () => {
