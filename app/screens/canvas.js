@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Image } from 'react-native';
-import { useSprings, animated } from 'react-spring';
+import { useSprings, animated, useSpringRef, useSpring } from 'react-spring';
 import { Svg, Path } from 'react-native-svg';
 import { svgPathProperties } from 'svg-path-properties';
 import { useFonts } from 'expo-font';
@@ -159,7 +159,7 @@ function comparePaths(pathData1, pathData2, numPoints = 100) {
 
 const AnimatedPath = animated(Path);
 
-export default Canvas = () => {
+export default Canvas = ({navigation}) => {
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
   const [letter, setLetter] = useState("A");
@@ -220,10 +220,15 @@ export default Canvas = () => {
     } if ((strokeCount + 1) == STROKE_INFO[letter]["n"]) {
       let score = ((totalScore / 3) / 62) * 100; 
       setTotalScore(score);
+
       console.log("ACCURACY", score);
       setComplete(true);
+      
       setTotalScore(0);
+            navigation.navigate({name: "Result", params:{status: true}})
+
     }
+    
   };
 
   const handleClearButtonClick = () => {
@@ -235,31 +240,99 @@ export default Canvas = () => {
   };
 
   const animateStrokes = () => {
-    if (!(hasAnimated && isAnimating)) {
-      setShow(true);
+    if (isAnimating) return;
+    if(hasAnimated){
+      setHasAnimated(false)
+      setAnimating(false)
+      setShow(false)
     }
 
-    setAnimating(!isAnimating);
+    // Start the animation
+    setAnimating(true);
     setHasAnimated(true);
-
-    setTimeout(() => { setAnimating(false); }, checkPaths.length * 800);
     
-    if (hasAnimated) {
-      setShow(true);
-    }
+
+    // Timeout to change show back to true after the animation duration
+    const animationDuration = checkPaths.length * 800; // You can adjust this as needed
+    setTimeout(() => {
+        setShow(true); // Show the strokes after hiding
+        setAnimating(false); // Animation is complete
+    }, animationDuration);
+}
+
+const [isAnimating, setAnimating] = useState(false);
+const [cur, setCur]  = useState(1000)
+const [goal, setGoal]  = useState(0)
+const[finished, setFinished] = useState(false)
+const api = useSpringRef()
+const springs = useSprings(
+
+  3,checkPaths.map((_,index)=>({
+    ref:api,
+    from: {
+      
+      strokeDashoffset: cur
+    },
+    
+    to: {
+      strokeDashoffset: goal
+      
+    },
+
+
+    delay: !finished?index * 1530:1530,
+      config: { duration: 2000 }
+  })
+
+
+  )
+)
+
+
+
+
+const handleClick = () => {
+  setFinished(false)
+  if(!finished){
+    setGoal(0)
+    api.start()
+  setFinished(true)
+  setGoal(1000)
+  }
+  if(finished){
+    api.start()
+    setTimeout(()=>{
+     
+    setFinished(false)
+    setGoal(0)
+      api.start()
+      
+
+    }, 5060)
+  
+
+    setTimeout(()=>{
+      setFinished(true)
+      setGoal(1000)
+      api.start()
+    },10000)
+    
+
+    console.log("SSSSS")
+
   }
 
-  const [isAnimating, setAnimating] = useState(false);
+}
+  
+  // setTimeout(()=>{
 
-  const springs = useSprings(
-    checkPaths.length,
-    checkPaths.map((_, index) => ({
-      strokeDasharray: 1000,
-      strokeDashoffset:  show ? 0 : 1000, 
-      delay: index * 800,
-      config: { duration: 1200 }
-    }))
-  );
+  //   setFinished(!finished?true:false)
+  //   setGoal(!finished?1:0)
+
+    
+  // }, 6000
+  // )
+
 
   return (
     <View style={styles.container}>
@@ -286,6 +359,8 @@ export default Canvas = () => {
               />
             )}
           </Svg>
+
+          
      
         </View>
         <Svg style={styles.overlay}>
@@ -296,41 +371,50 @@ export default Canvas = () => {
       </View>
 
       <View style={styles.info}>
+
       <View style={styles.iconContainer}>
-        <TouchableOpacity onPress={handleClearButtonClick}>
-          <Image source={require('../../assets/icons/recycle-bin.png')} style={styles.icon} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => console.log("Tutorial Clicked")}>
-          <Image source={require('../../assets/icons/refresh.png')} style={styles.icon} />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity onPress={handleClearButtonClick}>
+            <Image source={require('../../assets/icons/recycle-bin.png')} style={styles.icon} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => console.log("Tutorial Clicked")}>
+            <Image source={require('../../assets/icons/refresh.png')} style={styles.icon} />
+          </TouchableOpacity>
+        </View>
         <View style={styles.infoSection}>
+
+          
           <Text style={styles.infoText}>
             Character:  <Text style={styles.unicodeText}>𑐮</Text>            |            Lipi: Ranjana  
           </Text>
         </View>
         <View style={styles.animateSVG}> 
         <Svg 
-          height={(height / 100) * 35} 
-          width={(width / 100) * 70} 
-          viewBox={`0 0 ${(width / 100) * 70} ${(height / 100) * 35}`} 
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {(show) && (springs.map((spring, index) => (
-            <AnimatedPath
-              key={index}
-              d={checkPaths[index]}
-              stroke="white"
-              strokeWidth="4"
-              fill="none"
-              style={spring}
-            />
-          )))
-          }
+        height={(height / 100) * 35} 
+        width={(width / 100) * 70} 
+        viewBox={`0 0 ${(width / 100) * 70} ${(height / 100) * 35}`} 
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {(springs.map((spring, index) => (
+          <AnimatedPath
+            key={index}
+            d={checkPaths[index]}
+            stroke="white"
+            strokeWidth="4"
+            fill="none"
+            style={{...spring,
+              strokeDasharray: 1000,
+ 
+            }
 
-        </Svg>
-          <TouchableOpacity onPress={() => animateStrokes()}>
-            <Text>{isAnimating ? "Stop" : "Start"}</Text>
+            }
+            
+             // Apply spring styles here
+          />
+        )))}
+      </Svg>
+          <TouchableOpacity onPress={handleClick} style={styles.replayButton}>
+          <Text style={styles.replayText}>Play Animation</Text>
+
           </TouchableOpacity>
         </View>
         </View>
@@ -411,5 +495,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     display: 'flex'
+  },
+  replayButton: {
+    position: 'absolute',
+    bottom: -20,
+    right: 125,
+    padding: 10,
+    fontWeight: 'bold',
+    
+    borderRadius: 5,
+  },
+  replayText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
